@@ -20,6 +20,13 @@ export type IntakeData = {
   phonePrivate?: string;
   email?: string;
 
+  // ========= Notfallkontakt (optional) =========
+  emergencyFirstName?: string;
+  emergencyLastName?: string;
+  emergencyAddress?: string;
+  emergencyPhone?: string;
+
+
   // ========= Medical History (nach deinem PDF) =========
   hospitalized?: YesNo;
   hospitalizedWhen?: string;
@@ -113,6 +120,12 @@ const defaultData: IntakeData = {
   phone: "",
   phonePrivate: "",
   email: "",
+
+  emergencyFirstName: "",
+  emergencyLastName: "",
+  emergencyAddress: "",
+  emergencyPhone: "",
+
 
   hospitalized: undefined,
   hospitalizedWhen: "",

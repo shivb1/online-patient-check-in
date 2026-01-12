@@ -13,6 +13,13 @@ export default function ReviewPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ✅ MUSS hier oben stehen (nicht im JSX)
+  const hasEmergencyContact =
+    (data.emergencyFirstName ?? "").trim() ||
+    (data.emergencyLastName ?? "").trim() ||
+    (data.emergencyAddress ?? "").trim() ||
+    (data.emergencyPhone ?? "").trim();
+
   async function handleSubmit() {
     try {
       setIsSubmitting(true);
@@ -61,6 +68,16 @@ export default function ReviewPage() {
           <ReviewRow label="Telefon privat" value={data.phonePrivate} />
           <ReviewRow label="E-Mail" value={data.email} />
         </ReviewSection>
+
+        {/* ================= Notfallkontakt (optional) ================= */}
+        {hasEmergencyContact ? (
+          <ReviewSection title="Notfallkontakt (optional)">
+            <ReviewRow label="Vorname" value={data.emergencyFirstName} />
+            <ReviewRow label="Nachname" value={data.emergencyLastName} />
+            <ReviewRow label="Adresse" value={data.emergencyAddress} />
+            <ReviewRow label="Telefon" value={data.emergencyPhone} />
+          </ReviewSection>
+        ) : null}
 
         {/* ================= Allgemein ================= */}
         <ReviewSection title="Allgemein">
@@ -117,7 +134,10 @@ export default function ReviewPage() {
             label="Probleme bei Narkose"
             value={<YesNoText value={data.anesthesiaProblems} />}
           />
-          <ReviewRow label="Welche Probleme" value={data.anesthesiaProblemsWhich} />
+          <ReviewRow
+            label="Welche Probleme"
+            value={data.anesthesiaProblemsWhich}
+          />
 
           <ReviewRow
             label="Familie: Narkoseprobleme"
@@ -159,7 +179,10 @@ export default function ReviewPage() {
 
         {/* ================= Lunge ================= */}
         <ReviewSection title="Lunge">
-          <ReviewRow label="Raucher/in" value={<YesNoText value={data.smoker} />} />
+          <ReviewRow
+            label="Raucher/in"
+            value={<YesNoText value={data.smoker} />}
+          />
           <ReviewRow
             label="Luftnot bei Belastung"
             value={<YesNoText value={data.dyspnea} />}
@@ -177,7 +200,10 @@ export default function ReviewPage() {
             label="Diabetes/Hormonkrankheiten"
             value={<YesNoText value={data.diabetes} />}
           />
-          <ReviewRow label="Tumorerkrankung" value={<YesNoText value={data.cancer} />} />
+          <ReviewRow
+            label="Tumorerkrankung"
+            value={<YesNoText value={data.cancer} />}
+          />
           <ReviewRow
             label="Gerinnungsprobleme"
             value={<YesNoText value={data.coagulation} />}

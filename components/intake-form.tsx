@@ -209,6 +209,42 @@ export default function IntakeForm() {
         />
       </section>
 
+      <section>
+        <h2 className="text-lg font-semibold">Notfallkontakt (optional)</h2>
+
+        <input
+          name="emergencyFirstName"
+          value={data.emergencyFirstName ?? ""}
+          onChange={handleChange}
+          placeholder="Vorname Notfallkontakt"
+          className="input"
+        />
+
+        <input
+          name="emergencyLastName"
+          value={data.emergencyLastName ?? ""}
+          onChange={handleChange}
+          placeholder="Nachname Notfallkontakt"
+          className="input"
+        />
+
+        <input
+          name="emergencyAddress"
+          value={data.emergencyAddress ?? ""}
+          onChange={handleChange}
+          placeholder="Adresse Notfallkontakt"
+          className="input"
+        />
+
+        <input
+          name="emergencyPhone"
+          value={data.emergencyPhone ?? ""}
+          onChange={handleChange}
+          placeholder="Telefon Notfallkontakt"
+          className="input"
+        />
+      </section>
+
       <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl text-lg">
         Weiter zur medizinischen Anamnese
       </button>
