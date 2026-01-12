@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIntake } from "@/app/context/IntakeContext";
 
@@ -10,32 +11,37 @@ import { YesNoText } from "@/app/components/review/YesNoText";
 export default function ReviewPage() {
   const { data } = useIntake();
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
-  try {
-    const res = await fetch("/intake/submit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
+    try {
+      setIsSubmitting(true);
 
-    if (!res.ok) {
-      throw new Error("Fehler beim Absenden");
+      const res = await fetch("/intake/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        throw new Error("Fehler beim Absenden");
+      }
+
+      router.push("/intake/submit/success");
+    } catch (err) {
+      alert("Fehler beim Speichern der Anmeldung");
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    router.push("/intake/submit/success");
-  } catch (err) {
-    alert("Fehler beim Speichern der Anmeldung");
-    console.error(err);
   }
-}
-  return (
-    <main className="min-h-screen bg-gray-900 flex justify-center py-10">
-      <div className="w-full max-w-3xl bg-black rounded-xl p-6 text-white">
 
-        <h1 className="text-xl font-bold mb-6">Überprüfung Ihrer Angaben</h1>
+  return (
+    <main className="min-h-screen flex justify-center p-6">
+      <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg border border-slate-200 p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-6">
+          Überprüfung Ihrer Angaben
+        </h1>
 
         {/* ================= Patientendaten ================= */}
         <ReviewSection title="Patientendaten">
@@ -43,6 +49,7 @@ export default function ReviewPage() {
           <ReviewRow label="Nachname" value={data.lastName} />
           <ReviewRow label="Geburtsdatum" value={data.birthDate} />
           <ReviewRow label="AHV-Nummer" value={data.ahvNumber} />
+          <ReviewRow label="Geschlecht" value={data.gender} />
         </ReviewSection>
 
         {/* ================= Kontakt ================= */}
@@ -57,55 +64,148 @@ export default function ReviewPage() {
 
         {/* ================= Allgemein ================= */}
         <ReviewSection title="Allgemein">
-          <ReviewRow label="Im Spital (12 Monate)" value={<YesNoText value={data.hospitalized} />} />
-          <ReviewRow label="Hausarzt regelmässig" value={<YesNoText value={data.regularGP} />} />
-          <ReviewRow label="Regelmässige Medikamente" value={<YesNoText value={data.regularMedication} />} />
+          <ReviewRow
+            label="Im Spital (12 Monate)"
+            value={<YesNoText value={data.hospitalized} />}
+          />
+          <ReviewRow
+            label="Hausarzt regelmässig"
+            value={<YesNoText value={data.regularGP} />}
+          />
+          <ReviewRow
+            label="Regelmässige Medikamente"
+            value={<YesNoText value={data.regularMedication} />}
+          />
 
-          {data.medications && (
-            <ReviewRow label="Medikamente" value={data.medications} />
+          {/* Zusatzfelder (nur wenn wirklich befüllt → ReviewRow blendet sonst aus) */}
+          <ReviewRow label="Medikamente" value={data.medications} />
+
+          <ReviewRow
+            label="Allergien"
+            value={<YesNoText value={data.allergiesFlag} />}
+          />
+          <ReviewRow label="Welche Allergien" value={data.allergies} />
+
+          <ReviewRow
+            label="Aktivität eingeschränkt"
+            value={<YesNoText value={data.limitedActivity} />}
+          />
+          <ReviewRow label="Wie" value={data.limitedActivityHow} />
+          <ReviewRow label="Seit wann" value={data.limitedActivitySince} />
+
+          {/* Gebärfähig-Fragen: nur zeigen wenn gender female/other */}
+          {(data.gender === "female" || data.gender === "other") && (
+            <>
+              <ReviewRow
+                label="Schwangerschaft möglich"
+                value={<YesNoText value={data.pregnantPossible} />}
+              />
+              <ReviewRow
+                label="Stillen"
+                value={<YesNoText value={data.breastfeeding} />}
+              />
+            </>
           )}
 
-          <ReviewRow label="Allergien" value={<YesNoText value={data.allergiesFlag} />} />
-          {data.allergies && (
-            <ReviewRow label="Welche Allergien" value={data.allergies} />
-          )}
+          <ReviewRow
+            label="Operation/Narkose"
+            value={<YesNoText value={data.anesthesia} />}
+          />
+          <ReviewRow label="Warum" value={data.anesthesiaWhy} />
+
+          <ReviewRow
+            label="Probleme bei Narkose"
+            value={<YesNoText value={data.anesthesiaProblems} />}
+          />
+          <ReviewRow label="Welche Probleme" value={data.anesthesiaProblemsWhich} />
+
+          <ReviewRow
+            label="Familie: Narkoseprobleme"
+            value={<YesNoText value={data.familyAnesthesiaProblems} />}
+          />
         </ReviewSection>
 
         {/* ================= Herz-Kreislauf ================= */}
         <ReviewSection title="Herz-Kreislauf">
-          <ReviewRow label="Blutdruckprobleme" value={<YesNoText value={data.bloodPressure} />} />
-          <ReviewRow label="Schmerzen/Atemnot bei Belastung" value={<YesNoText value={data.exertionPainBreath} />} />
-          <ReviewRow label="Unregelmässiger Puls" value={<YesNoText value={data.irregularPulse} />} />
-          <ReviewRow label="Geschwollene Beine/Füsse" value={<YesNoText value={data.swollenLegs} />} />
+          <ReviewRow
+            label="Blutdruckprobleme"
+            value={<YesNoText value={data.bloodPressure} />}
+          />
+          <ReviewRow
+            label="Schmerzen/Atemnot bei Belastung"
+            value={<YesNoText value={data.exertionPainBreath} />}
+          />
+          <ReviewRow
+            label="Flach liegen Problem"
+            value={<YesNoText value={data.flatLyingProblem} />}
+          />
+          <ReviewRow
+            label="Unregelmässiger Puls"
+            value={<YesNoText value={data.irregularPulse} />}
+          />
+          <ReviewRow
+            label="Nachts Symptome"
+            value={<YesNoText value={data.nightSymptoms} />}
+          />
+          <ReviewRow
+            label="Geschwollene Beine/Füsse"
+            value={<YesNoText value={data.swollenLegs} />}
+          />
+          <ReviewRow
+            label="Thrombose/Embolie"
+            value={<YesNoText value={data.thrombosis} />}
+          />
         </ReviewSection>
 
         {/* ================= Lunge ================= */}
         <ReviewSection title="Lunge">
           <ReviewRow label="Raucher/in" value={<YesNoText value={data.smoker} />} />
-          <ReviewRow label="Luftnot bei Belastung" value={<YesNoText value={data.dyspnea} />} />
+          <ReviewRow
+            label="Luftnot bei Belastung"
+            value={<YesNoText value={data.dyspnea} />}
+          />
           <ReviewRow label="Asthma" value={<YesNoText value={data.asthma} />} />
+          <ReviewRow
+            label="Regelmässig inhalieren"
+            value={<YesNoText value={data.inhaler} />}
+          />
+        </ReviewSection>
+
+        {/* ================= Übrige ================= */}
+        <ReviewSection title="Weitere medizinische Angaben">
+          <ReviewRow
+            label="Diabetes/Hormonkrankheiten"
+            value={<YesNoText value={data.diabetes} />}
+          />
+          <ReviewRow label="Tumorerkrankung" value={<YesNoText value={data.cancer} />} />
+          <ReviewRow
+            label="Gerinnungsprobleme"
+            value={<YesNoText value={data.coagulation} />}
+          />
         </ReviewSection>
 
         {/* ================= Körperdaten ================= */}
         <ReviewSection title="Körperdaten">
-          <ReviewRow label="Gewicht" value={data.weight ? `${data.weight} kg` : "—"} />
-          <ReviewRow label="Grösse" value={data.height ? `${data.height} cm` : "—"} />
+          <ReviewRow label="Gewicht" value={data.weight ? `${data.weight} kg` : ""} />
+          <ReviewRow label="Grösse" value={data.height ? `${data.height} cm` : ""} />
         </ReviewSection>
 
         {/* ================= Aktionen ================= */}
         <div className="flex justify-between pt-8">
           <button
             onClick={() => router.back()}
-            className="px-6 py-3 rounded-md bg-gray-700 hover:bg-gray-600"
+            className="px-6 py-3 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold"
+            disabled={isSubmitting}
           >
             Zurück
           </button>
 
           <button
             onClick={handleSubmit}
-            className="px-6 py-3 rounded-md bg-blue-600 hover:bg-blue-500"
->
-              Anmeldung abschliessen
+            className="px-6 py-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Wird gesendet..." : "Anmeldung abschliessen"}
           </button>
         </div>
       </div>

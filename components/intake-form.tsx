@@ -1,32 +1,90 @@
 "use client";
 
+import React from "react";
 import { useRouter } from "next/navigation";
-import { useIntake } from "../context/IntakeContext";
+import { useIntake, type IntakeData, type Gender } from "../context/IntakeContext";
+
+function todayZurichISO(): string {
+  // Liefert YYYY-MM-DD in der Zeitzone Europe/Zurich (auch wenn Gerät mal falsch eingestellt wäre)
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Zurich",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function GenderButton({
+  label,
+  value,
+  selected,
+  onClick,
+}: {
+  label: string;
+  value: Gender;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "px-4 py-2 rounded-md border text-sm font-medium",
+        selected
+          ? "bg-blue-600 border-blue-600 text-white"
+          : "bg-white border-gray-300 text-gray-900 hover:bg-gray-50",
+      ].join(" ")}
+      aria-pressed={selected}
+    >
+      {label}
+    </button>
+  );
+}
 
 export default function IntakeForm() {
   const router = useRouter();
   const { data, updateData } = useIntake();
 
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) {
-    const { name, value, type, checked } = e.target as HTMLInputElement;
+  const maxBirthDate = todayZurichISO(); // heute (CH), als YYYY-MM-DD
 
-    updateData({
-      [name]: type === "checkbox" ? checked : value,
-    });
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    const target = e.target as HTMLInputElement;
+    const name = target.name as keyof IntakeData;
+    const value = target.value;
+
+    // Extra: Birthdate darf nicht in der Zukunft sein
+    if (name === "birthDate") {
+      if (value && value > maxBirthDate) {
+        // Du kannst auch stattdessen alert + return machen
+        updateData({ birthDate: maxBirthDate });
+        return;
+      }
+    }
+
+    updateData({ [name]: value } as Partial<IntakeData>);
+  }
+
+  function setGender(g: Gender) {
+    updateData({ gender: g });
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    // ⬇️ nur weiter, NICHT speichern
+    // Zusätzliche Sicherheitsprüfung (falls Browser max ignoriert)
+    if (data.birthDate && data.birthDate > maxBirthDate) {
+      alert("Geburtsdatum darf nicht in der Zukunft liegen.");
+      updateData({ birthDate: "" });
+      return;
+    }
+
     router.push("/intake/medical-history");
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <section>
+      <section className="space-y-3">
         <h2 className="text-lg font-semibold">Patientendaten</h2>
 
         <input
@@ -47,6 +105,31 @@ export default function IntakeForm() {
           className="input"
         />
 
+        {/* Gender Auswahl */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-gray-200">Geschlecht (optional)</div>
+          <div className="flex gap-2">
+            <GenderButton
+              label="Männlich"
+              value="male"
+              selected={data.gender === "male"}
+              onClick={() => setGender("male")}
+            />
+            <GenderButton
+              label="Weiblich"
+              value="female"
+              selected={data.gender === "female"}
+              onClick={() => setGender("female")}
+            />
+            <GenderButton
+              label="Andere"
+              value="other"
+              selected={data.gender === "other"}
+              onClick={() => setGender("other")}
+            />
+          </div>
+        </div>
+
         <input
           type="date"
           name="birthDate"
@@ -54,6 +137,8 @@ export default function IntakeForm() {
           onChange={handleChange}
           required
           className="input"
+          min="1900-01-01"
+          max={maxBirthDate}
         />
 
         <input
@@ -66,7 +151,7 @@ export default function IntakeForm() {
         />
       </section>
 
-      <section>
+      <section className="space-y-3">
         <h2 className="text-lg font-semibold">Kontakt</h2>
 
         <input
@@ -124,10 +209,7 @@ export default function IntakeForm() {
         />
       </section>
 
-      <button
-        type="submit"
-        className="w-full bg-blue-600 text-white py-4 rounded-xl text-lg"
-      >
+      <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl text-lg">
         Weiter zur medizinischen Anamnese
       </button>
     </form>

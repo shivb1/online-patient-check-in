@@ -203,18 +203,22 @@ export default function MedicalHistoryForm() {
         </div>
       )}
 
-      <div className="mt-4 text-sm font-semibold">Für Frauen im gebärfähigen Alter</div>
+      {(data.gender === "female" || data.gender === "other") && (
+        <>
+        <div className="mt-4 text-sm font-semibold">Für Frauen im gebärfähigen Alter</div>
 
-      <YesNoRow
-        label="Könnten Sie schwanger sein?"
-        value={data.pregnantPossible}
-        onChange={(v) => updateData({ pregnantPossible: v })}
-      />
-      <YesNoRow
-        label="Stillen Sie derzeit?"
-        value={data.breastfeeding}
-        onChange={(v) => updateData({ breastfeeding: v })}
-      />
+        <YesNoRow
+          label="Könnten Sie schwanger sein?"
+          value={data.pregnantPossible}
+          onChange={(v) => updateData({ pregnantPossible: v })}
+        />
+        <YesNoRow
+          label="Stillen Sie derzeit?"
+          value={data.breastfeeding}
+          onChange={(v) => updateData({ breastfeeding: v })}
+        />
+      </>
+       )}
 
       <YesNoRow
         label="Haben Sie schon je eine Operation oder Narkose / Teilnarkose erhalten?"

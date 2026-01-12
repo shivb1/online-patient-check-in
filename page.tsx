@@ -2,24 +2,27 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="w-full max-w-xl rounded-xl bg-white p-8 shadow-lg text-center">
-        <h1 className="text-3xl font-bold mb-4">
-          Online Patient-Check-in
-        </h1>
+    <main className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-slate-200 p-10">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-slate-900">
+            Online Patient-Check-in
+          </h1>
 
-        <p className="text-gray-600 mb-8">
-          Digitale Notfall-Anmeldung für das Spital Emmental (Burgdorf)
-        </p>
+          <p className="mt-2 text-slate-700">
+            Digitale Notfall-Anmeldung für das Spital Emmental (Burgdorf)
+          </p>
 
-        <Link
-          href="/intake"
-          className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition"
-        >
-          Notfall-Anmeldung starten
-        </Link>
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/intake"
+              className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+            >
+              Notfall-Anmeldung starten
+            </Link>
+          </div>
+        </div>
       </div>
     </main>
   );
 }
-

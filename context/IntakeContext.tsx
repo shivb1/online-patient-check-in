@@ -3,11 +3,13 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 
 export type YesNo = "yes" | "no";
+export type Gender = "male" | "female" | "other" | "";
 
 export type IntakeData = {
   // ========= Patientendaten =========
   firstName?: string;
   lastName?: string;
+  gender?: Gender;
   birthDate?: string;
   ahvNumber?: string;
 
@@ -101,6 +103,7 @@ const IntakeContext = createContext<IntakeContextValue | null>(null);
 const defaultData: IntakeData = {
   firstName: "",
   lastName: "",
+  gender: "",
   birthDate: "",
   ahvNumber: "",
 
@@ -181,7 +184,17 @@ export function IntakeProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<IntakeData>(defaultData);
 
   const updateData = (patch: Partial<IntakeData>) => {
-    setData((prev) => ({ ...prev, ...patch }));
+    setData((prev) => {
+      const next: IntakeData = { ...prev, ...patch };
+
+      // Wenn gender auf "male" gesetzt wird -> Felder zu gebaerfaehigem Alter loeschen
+      if (patch.gender === "male") {
+        next.pregnantPossible = undefined;
+        next.breastfeeding = undefined;
+      }
+
+      return next;
+    });
   };
 
   const reset = () => setData(defaultData);
