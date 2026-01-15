@@ -1,63 +1,41 @@
 import { NextResponse } from "next/server";
 
-export async function POST(req: Request) {
-  const data = await req.json();
-
-  console.log("📥 Intake-Daten angekommen:", data);
-
-  return NextResponse.json({ ok: true });
+// Für Demo: sehr permissive CORS Header (hilft bei iPad/LAN)
+// Für Produktion würdest du das einschränken.
+function withCors(res: NextResponse) {
+  res.headers.set("Access-Control-Allow-Origin", "*");
+  res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return res;
 }
 
+export async function OPTIONS() {
+  return withCors(new NextResponse(null, { status: 204 }));
+}
 
-//import { NextResponse } from "next/server";
-//import { pool } from "@/app/lib/db";
+export async function POST(req: Request) {
+  try {
+    // Debug: zeigt dir im VS Code Terminal, was vom iPad kommt
+    const origin = req.headers.get("origin");
+    const host = req.headers.get("host");
+    const ua = req.headers.get("user-agent");
 
-//export async function POST(req: Request) {
-  //const data = await req.json();
+    const data = await req.json();
 
-  //const client = await pool.connect();
-  //try {
-    //await client.query("BEGIN");
+    console.log("✅ /intake/submit POST");
+    console.log("   host:", host);
+    console.log("   origin:", origin);
+    console.log("   ua:", ua);
+    console.log("📥 Intake-Daten angekommen:", data);
 
-    //const patientRes = await client.query(
-    //  `INSERT INTO patient (first_name, last_name, birth_date, ahv_number)
-    //   VALUES ($1,$2,$3,$4) RETURNING id`,
-     // [data.firstName, data.lastName, data.birthDate, data.ahvNumber]
-   // );
+    // TODO: hier später wieder deine DB Inserts rein
+    return withCors(NextResponse.json({ ok: true }));
+  } catch (err) {
+    console.error("❌ submit error:", err);
 
-    //const patientId = patientRes.rows[0].id;
-
-   //await client.query(
-    //  `INSERT INTO patient_contact
-     //  (patient_id, address, zip, city, phone, phone_private, email)
-     //  VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-     // [
-      //  patientId,
-      //  data.address,
-      //  data.zip,
-      //  data.city,
-       // data.phone,
-      //  data.phonePrivate,
-      //  data.email,
-    //  ]
-   // );
-
-    //const intakeRes = await client.query(
-   //   `INSERT INTO intake (patient_id, status)
- //      VALUES ($1,'submitted') RETURNING id`,
- //     [patientId]
- //   );
-
- //   await client.query(
-  //    `INSERT INTO medical_history (...) VALUES (...)`
-  //  );
-
-  //  await client.query("COMMIT");
- //   return NextResponse.json({ ok: true });
- // } catch (e) {
- //   await client.query("ROLLBACK");
- //   throw e;
- // } finally {
-//    client.release();
- // }
-//}
+    const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
+    return withCors(
+      NextResponse.json({ ok: false, error: msg }, { status: 500 })
+    );
+  }
+}

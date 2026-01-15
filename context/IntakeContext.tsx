@@ -6,6 +6,12 @@ export type YesNo = "yes" | "no";
 export type Gender = "male" | "female" | "other" | "";
 
 export type IntakeData = {
+
+   // ========= Case (QR) =========
+  caseToken?: string;
+  caseNumber?: string;
+  casePatientId?: string;
+
   // ========= Patientendaten =========
   firstName?: string;
   lastName?: string;
@@ -108,6 +114,10 @@ type IntakeContextValue = {
 const IntakeContext = createContext<IntakeContextValue | null>(null);
 
 const defaultData: IntakeData = {
+  caseToken: "",
+  caseNumber: "",
+  casePatientId: "",
+  
   firstName: "",
   lastName: "",
   gender: "",
@@ -125,7 +135,6 @@ const defaultData: IntakeData = {
   emergencyLastName: "",
   emergencyAddress: "",
   emergencyPhone: "",
-
 
   hospitalized: undefined,
   hospitalizedWhen: "",

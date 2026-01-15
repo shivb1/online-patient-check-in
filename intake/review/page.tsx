@@ -13,35 +13,54 @@ export default function ReviewPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ MUSS hier oben stehen (nicht im JSX)
   const hasEmergencyContact =
     (data.emergencyFirstName ?? "").trim() ||
     (data.emergencyLastName ?? "").trim() ||
     (data.emergencyAddress ?? "").trim() ||
     (data.emergencyPhone ?? "").trim();
 
-  async function handleSubmit() {
-    try {
-      setIsSubmitting(true);
+async function handleSubmit() {
+  try {
+    setIsSubmitting(true);
 
-      const res = await fetch("/intake/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+    const base =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${base}/intake/submit`; // <-- wichtig: absolute URL
 
-      if (!res.ok) {
-        throw new Error("Fehler beim Absenden");
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      // echte Fehlermeldung aus Server holen
+      let serverMsg = `${res.status} ${res.statusText}`;
+      try {
+        const ct = res.headers.get("content-type") ?? "";
+        if (ct.includes("application/json")) {
+          const j = (await res.json()) as { error?: string; message?: string };
+          serverMsg = j.error || j.message || serverMsg;
+        } else {
+          const t = await res.text();
+          if (t) serverMsg = t;
+        }
+      } catch {
+        // ignore
       }
-
-      router.push("/intake/submit/success");
-    } catch (err) {
-      alert("Fehler beim Speichern der Anmeldung");
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
+      throw new Error(serverMsg);
     }
+
+    router.push("/intake/submit/success");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    alert(`Fehler beim Speichern der Anmeldung:\n${msg}`);
+    console.error(err);
+  } finally {
+    setIsSubmitting(false);
   }
+}
 
   return (
     <main className="min-h-screen flex justify-center p-6">
@@ -93,8 +112,6 @@ export default function ReviewPage() {
             label="Regelmässige Medikamente"
             value={<YesNoText value={data.regularMedication} />}
           />
-
-          {/* Zusatzfelder (nur wenn wirklich befüllt → ReviewRow blendet sonst aus) */}
           <ReviewRow label="Medikamente" value={data.medications} />
 
           <ReviewRow
@@ -110,7 +127,6 @@ export default function ReviewPage() {
           <ReviewRow label="Wie" value={data.limitedActivityHow} />
           <ReviewRow label="Seit wann" value={data.limitedActivitySince} />
 
-          {/* Gebärfähig-Fragen: nur zeigen wenn gender female/other */}
           {(data.gender === "female" || data.gender === "other") && (
             <>
               <ReviewRow
@@ -222,6 +238,7 @@ export default function ReviewPage() {
             onClick={() => router.back()}
             className="px-6 py-3 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold"
             disabled={isSubmitting}
+            type="button"
           >
             Zurück
           </button>
@@ -230,6 +247,7 @@ export default function ReviewPage() {
             onClick={handleSubmit}
             className="px-6 py-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60"
             disabled={isSubmitting}
+            type="button"
           >
             {isSubmitting ? "Wird gesendet..." : "Anmeldung abschliessen"}
           </button>
