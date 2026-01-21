@@ -8,10 +8,18 @@ import { ReviewRow } from "@/app/components/review/ReviewRow";
 import { ReviewSection } from "@/app/components/review/ReviewSection";
 import { YesNoText } from "@/app/components/review/YesNoText";
 
+const STAFF_PASSWORD = "246813579";
+
 export default function ReviewPage() {
   const { data } = useIntake();
   const router = useRouter();
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal / Passwort-Freigabe
+  const [showGate, setShowGate] = useState(false);
+  const [staffPassword, setStaffPassword] = useState("");
+  const [staffError, setStaffError] = useState<string>("");
 
   const hasEmergencyContact =
     (data.emergencyFirstName ?? "").trim() ||
@@ -19,48 +27,52 @@ export default function ReviewPage() {
     (data.emergencyAddress ?? "").trim() ||
     (data.emergencyPhone ?? "").trim();
 
-async function handleSubmit() {
-  try {
-    setIsSubmitting(true);
+  function openGate() {
+    setStaffError("");
+    setStaffPassword("");
+    setShowGate(true);
+  }
 
-    const base =
-      typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${base}/intake/submit`; // <-- wichtig: absolute URL
+  function closeGate() {
+    if (isSubmitting) return;
+    setShowGate(false);
+    setStaffError("");
+    setStaffPassword("");
+  }
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-      cache: "no-store",
-    });
+  async function doSubmit() {
+    try {
+      setIsSubmitting(true);
 
-    if (!res.ok) {
-      // echte Fehlermeldung aus Server holen
-      let serverMsg = `${res.status} ${res.statusText}`;
-      try {
-        const ct = res.headers.get("content-type") ?? "";
-        if (ct.includes("application/json")) {
-          const j = (await res.json()) as { error?: string; message?: string };
-          serverMsg = j.error || j.message || serverMsg;
-        } else {
-          const t = await res.text();
-          if (t) serverMsg = t;
-        }
-      } catch {
-        // ignore
+      const res = await fetch("/api/intake/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        throw new Error("Fehler beim Absenden");
       }
-      throw new Error(serverMsg);
+
+      router.push("/intake/submit/success");
+    } catch (err) {
+      console.error(err);
+      setStaffError("Fehler beim Speichern der Anmeldung. Bitte nochmals versuchen.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function confirmAndSubmit() {
+    setStaffError("");
+
+    if (staffPassword !== STAFF_PASSWORD) {
+      setStaffError("Falsches Passwort. Bitte Fachkraft-Passwort eingeben.");
+      return;
     }
 
-    router.push("/intake/submit/success");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    alert(`Fehler beim Speichern der Anmeldung:\n${msg}`);
-    console.error(err);
-  } finally {
-    setIsSubmitting(false);
+    await doSubmit();
   }
-}
 
   return (
     <main className="min-h-screen flex justify-center p-6">
@@ -112,6 +124,7 @@ async function handleSubmit() {
             label="Regelmässige Medikamente"
             value={<YesNoText value={data.regularMedication} />}
           />
+
           <ReviewRow label="Medikamente" value={data.medications} />
 
           <ReviewRow
@@ -150,10 +163,7 @@ async function handleSubmit() {
             label="Probleme bei Narkose"
             value={<YesNoText value={data.anesthesiaProblems} />}
           />
-          <ReviewRow
-            label="Welche Probleme"
-            value={data.anesthesiaProblemsWhich}
-          />
+          <ReviewRow label="Welche Probleme" value={data.anesthesiaProblemsWhich} />
 
           <ReviewRow
             label="Familie: Narkoseprobleme"
@@ -195,10 +205,7 @@ async function handleSubmit() {
 
         {/* ================= Lunge ================= */}
         <ReviewSection title="Lunge">
-          <ReviewRow
-            label="Raucher/in"
-            value={<YesNoText value={data.smoker} />}
-          />
+          <ReviewRow label="Raucher/in" value={<YesNoText value={data.smoker} />} />
           <ReviewRow
             label="Luftnot bei Belastung"
             value={<YesNoText value={data.dyspnea} />}
@@ -235,24 +242,85 @@ async function handleSubmit() {
         {/* ================= Aktionen ================= */}
         <div className="flex justify-between pt-8">
           <button
+            type="button"
             onClick={() => router.back()}
             className="px-6 py-3 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold"
             disabled={isSubmitting}
-            type="button"
           >
             Zurück
           </button>
 
           <button
-            onClick={handleSubmit}
+            type="button"
+            onClick={openGate}
             className="px-6 py-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60"
             disabled={isSubmitting}
-            type="button"
           >
-            {isSubmitting ? "Wird gesendet..." : "Anmeldung abschliessen"}
+            Anmeldung abschliessen
           </button>
         </div>
       </div>
+
+      {/* ================= Modal: Fachkraft-Freigabe ================= */}
+      {showGate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          {/* Overlay */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={closeGate}
+          />
+
+          {/* Modal */}
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl border border-slate-200 p-6">
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
+              Danke fürs Ausfüllen
+            </h2>
+            <p className="text-slate-700">
+              Bitte melden Sie sich am Empfang oder warten Sie auf eine Fachkraft.
+              Die Anmeldung wird erst nach Bestätigung durch Fachpersonal abgesendet.
+            </p>
+
+            <div className="mt-5">
+              <label className="block text-sm font-semibold text-slate-900 mb-1">
+                Fachkraft-Passwort
+              </label>
+              <input
+                type="password"
+                value={staffPassword}
+                onChange={(e) => setStaffPassword(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-blue-600"
+                placeholder="Passwort eingeben"
+                autoFocus
+                disabled={isSubmitting}
+              />
+
+              {staffError && (
+                <p className="mt-2 text-sm text-red-600">{staffError}</p>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-between gap-3">
+              <button
+                type="button"
+                onClick={closeGate}
+                className="px-5 py-3 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-900 font-semibold"
+                disabled={isSubmitting}
+              >
+                Abbrechen
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmAndSubmit}
+                className="px-5 py-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Wird gesendet..." : "Bestätigen & Absenden"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
