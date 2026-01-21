@@ -98,12 +98,19 @@ function LineArea({
   );
 }
 
+// Zahlen-only Helper (verhindert e, -, Text)
+function digitsOnly(raw: string): string {
+  return (raw ?? "").replace(/[^\d]/g, "");
+}
+
 export default function MedicalHistoryForm() {
   const { data, updateData } = useIntake();
 
   return (
     <div className="text-slate-900">
-      <h1 className="text-xl font-bold mb-1">Allgemeine Fragen zum Gesundheitszustand</h1>
+      <h1 className="text-xl font-bold mb-1">
+        Allgemeine Fragen zum Gesundheitszustand
+      </h1>
       <p className="text-xs text-slate-600 mb-6">
         Bitte beantworten Sie die Fragen so gut wie möglich.
       </p>
@@ -205,20 +212,22 @@ export default function MedicalHistoryForm() {
 
       {(data.gender === "female" || data.gender === "other") && (
         <>
-        <div className="mt-4 text-sm font-semibold">Für Frauen im gebärfähigen Alter</div>
+          <div className="mt-4 text-sm font-semibold">
+            Für Frauen im gebärfähigen Alter
+          </div>
 
-        <YesNoRow
-          label="Könnten Sie schwanger sein?"
-          value={data.pregnantPossible}
-          onChange={(v) => updateData({ pregnantPossible: v })}
-        />
-        <YesNoRow
-          label="Stillen Sie derzeit?"
-          value={data.breastfeeding}
-          onChange={(v) => updateData({ breastfeeding: v })}
-        />
-      </>
-       )}
+          <YesNoRow
+            label="Könnten Sie schwanger sein?"
+            value={data.pregnantPossible}
+            onChange={(v) => updateData({ pregnantPossible: v })}
+          />
+          <YesNoRow
+            label="Stillen Sie derzeit?"
+            value={data.breastfeeding}
+            onChange={(v) => updateData({ breastfeeding: v })}
+          />
+        </>
+      )}
 
       <YesNoRow
         label="Haben Sie schon je eine Operation oder Narkose / Teilnarkose erhalten?"
@@ -424,20 +433,49 @@ export default function MedicalHistoryForm() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
         <div>
-          <div className="text-xs text-slate-600 mb-1">Gewicht (kg)</div>
-          <LineInput
+          <div className="text-xs text-slate-600 mb-1">Gewicht (kg) *</div>
+          <input
+            type="number"
+            name="weight"
+            required
+            min={1}
+            max={500}
+            step={1}
+            inputMode="numeric"
+            className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm focus:border-slate-700 outline-none"
             placeholder="z.B. 72"
-            value={data.weight}
-            onChange={(v) => updateData({ weight: v })}
+            value={data.weight ?? ""}
+            onChange={(e) => {
+              const v = digitsOnly(e.target.value);
+              updateData({ weight: v });
+            }}
+            onKeyDown={(e) => {
+              // verhindert e, E, -, +, .
+              if (["e", "E", "-", "+", "."].includes(e.key)) e.preventDefault();
+            }}
           />
         </div>
 
         <div>
-          <div className="text-xs text-slate-600 mb-1">Körpergrösse (cm)</div>
-          <LineInput
+          <div className="text-xs text-slate-600 mb-1">Körpergrösse (cm) *</div>
+          <input
+            type="number"
+            name="height"
+            required
+            min={10}
+            max={250}
+            step={1}
+            inputMode="numeric"
+            className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm focus:border-slate-700 outline-none"
             placeholder="z.B. 178"
-            value={data.height}
-            onChange={(v) => updateData({ height: v })}
+            value={data.height ?? ""}
+            onChange={(e) => {
+              const v = digitsOnly(e.target.value);
+              updateData({ height: v });
+            }}
+            onKeyDown={(e) => {
+              if (["e", "E", "-", "+", "."].includes(e.key)) e.preventDefault();
+            }}
           />
         </div>
       </div>

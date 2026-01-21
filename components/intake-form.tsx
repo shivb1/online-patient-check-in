@@ -14,6 +14,49 @@ function todayZurichISO(): string {
   }).format(new Date());
 }
 
+const AHV_REGEX = /^756\.\d{4}\.\d{4}\.\d{2}$/;
+
+function normalizeAhv(raw: string): string {
+  const trimmed = (raw ?? "").trim();
+
+  // Alles ausser Ziffern entfernen
+  const digits = trimmed.replace(/\D/g, "");
+
+  // Erwartung: 13 Ziffern, beginnt mit 756
+  if (digits.length === 13 && digits.startsWith("756")) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 7)}.${digits.slice(7, 11)}.${digits.slice(11, 13)}`;
+  }
+
+  return trimmed;
+}
+
+// Erlaubte CH Mobile/Telefon Formate:
+// - 0XX XXX XX XX  (z.B. 079 797 79 79)
+// - +41 XX XXX XX XX (z.B. +41 79 797 79 79)
+// Whitespace / Bindestrich / Klammern sind egal.
+// erlaubt: 079..., +4179..., 004179...  (jeweils mit/ohne Leerzeichen/Binde/() weil wir normalisieren)
+const PHONE_REGEX = /^(?:0\d{2}|\+41\d{2}|0041\d{2})\d{7}$/;
+
+
+function normalizePhone(raw: string): string {
+  const trimmed = (raw ?? "").trim();
+
+  // Alles ausser Ziffern und + entfernen
+  // (wir erlauben + nur am Anfang)
+  let cleaned = trimmed.replace(/[^\d+]/g, "");
+
+  // 0041... -> +41...
+  if (cleaned.startsWith("0041")) cleaned = "+41" + cleaned.slice(4);
+
+  // wenn + vorkommt, nur vorne erlauben
+  if (cleaned.includes("+") && !cleaned.startsWith("+")) {
+    cleaned = cleaned.replace(/\+/g, "");
+  }
+
+  return cleaned;
+}
+
+
 function GenderButton({
   label,
   value,
@@ -62,6 +105,43 @@ export default function IntakeForm() {
       }
     }
 
+        // AHV: automatisch formatieren + Browser-Validation Message setzen
+    if (name === "ahvNumber") {
+      const formatted = normalizeAhv(value);
+
+      // Custom validity: erst leer lassen oder gültig -> ok, sonst Fehlermeldung
+      if (formatted === "" || AHV_REGEX.test(formatted)) {
+        target.setCustomValidity("");
+      } else {
+        target.setCustomValidity("AHV-Nummer muss im Format 756.XXXX.XXXX.XX sein.");
+      }
+
+      updateData({ ahvNumber: formatted });
+      return;
+    }
+
+        // Telefon: normalisieren + validieren (primary + notfall)
+    if (name === "phone" || name === "phonePrivate" || name === "emergencyPhone") {
+      
+      const normalized = normalizePhone(value);
+
+      if (normalized === "" && (name === "phonePrivate" || name === "emergencyPhone")) {
+        // optional -> ok wenn leer
+        target.setCustomValidity("");
+      } else if (PHONE_REGEX.test(normalized)) {
+        target.setCustomValidity("");
+      } else {
+        target.setCustomValidity(
+          "Telefon muss im Format 079 101 10 01, +41 79 101 10 01 oder 0041 79 101 10 01 sein."
+        );
+      }
+
+
+      updateData({ [name]: normalized } as Partial<IntakeData>);
+      return;
+    }
+
+
     updateData({ [name]: value } as Partial<IntakeData>);
   }
 
@@ -69,18 +149,31 @@ export default function IntakeForm() {
     updateData({ gender: g });
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  e.preventDefault();
 
-    // Zusätzliche Sicherheitsprüfung (falls Browser max ignoriert)
-    if (data.birthDate && data.birthDate > maxBirthDate) {
-      alert("Geburtsdatum darf nicht in der Zukunft liegen.");
-      updateData({ birthDate: "" });
-      return;
-    }
-
-    router.push("/intake/medical-history");
+  // ✅ Browser-Validierung aktiv nutzen (required/pattern/type=email/etc.)
+  const form = e.currentTarget;
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
   }
+
+  // Zusätzliche Sicherheitsprüfung (falls Browser max ignoriert)
+  if (data.birthDate && data.birthDate > maxBirthDate) {
+    alert("Geburtsdatum darf nicht in der Zukunft liegen.");
+    updateData({ birthDate: "" });
+    return;
+  }
+
+  // Extra Sicherheit: AHV nochmals prüfen (falls irgendwas schief ging)
+  if (!AHV_REGEX.test((data.ahvNumber ?? "").trim())) {
+    alert("Bitte eine gültige AHV-Nummer eingeben: 756.XXXX.XXXX.XX");
+    return;
+  }
+
+  router.push("/intake/medical-history");
+}
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -145,10 +238,14 @@ export default function IntakeForm() {
           name="ahvNumber"
           value={data.ahvNumber ?? ""}
           onChange={handleChange}
-          placeholder="AHV-Nummer *"
+          placeholder="AHV-Nummer * (756.XXXX.XXXX.XX)"
           required
+          pattern="^756\.\d{4}\.\d{4}\.\d{2}$"
+          title="Format: 756.XXXX.XXXX.XX"
+          inputMode="numeric"
           className="input"
         />
+
       </section>
 
       <section className="space-y-3">
@@ -185,26 +282,33 @@ export default function IntakeForm() {
           name="phone"
           value={data.phone ?? ""}
           onChange={handleChange}
-          placeholder="Telefon *"
+          placeholder="Telefon * (079 123 45 45 oder +41 79 123 45 45)"
           required
+          pattern="^(?:0\d{2}|\+41\d{2})\d{7}$"
+          title="Format: 079 123 45 45 oder +41 79 123 45 45"
+          inputMode="tel"
           className="input"
         />
 
-        <input
+
+       <input
           name="phonePrivate"
           value={data.phonePrivate ?? ""}
           onChange={handleChange}
-          placeholder="Telefon privat (optional)"
+          placeholder="Telefon privat (optional) z.B. +41 79 101 10 01"
+          pattern="^(?:0\d{2}|\+41\d{2}|0041\d{2})\d{7}$"
+          title="Format: 079 101 10 01 oder +41 79 101 10 01 oder 0041 79 101 10 01"
+          inputMode="tel"
           className="input"
         />
+
 
         <input
           type="email"
           name="email"
           value={data.email ?? ""}
           onChange={handleChange}
-          placeholder="E-Mail *"
-          required
+          placeholder="E-Mail "
           className="input"
         />
       </section>
@@ -240,9 +344,13 @@ export default function IntakeForm() {
           name="emergencyPhone"
           value={data.emergencyPhone ?? ""}
           onChange={handleChange}
-          placeholder="Telefon Notfallkontakt"
+          placeholder="Telefon Notfallkontakt (optional)"
+          pattern="^(?:0\d{2}|\+41\d{2})\d{7}$"
+          title="Format: 079 123 45 45 oder +41 79 123 45 45"
+          inputMode="tel"
           className="input"
         />
+
       </section>
 
       <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl text-lg">
