@@ -1,0 +1,27 @@
+@baseUrl = http://localhost:3000
+
+### Patient suchen
+POST {{baseUrl}}/api/patient/search
+Content-Type: application/json
+
+{
+  "firstName": "Max",
+  "lastName": "Muster",
+  "birthDate": "1985-06-15"
+}
+
+### Fall erstellen (patientId einsetzen!)
+POST {{baseUrl}}/api/case/create
+Content-Type: application/json
+
+{
+  "patientId": "dd955785e-7004-493c-9667-a5ddf4fb2700"
+}
+
+### Fall lookup (Token einscannen)
+POST {{baseUrl}}/api/case/lookup
+Content-Type: application/json
+
+{
+  "token": "f771dc25-1064-49d3-87a0-0c1edd01eea7"
+}
