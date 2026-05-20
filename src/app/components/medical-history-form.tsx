@@ -158,7 +158,7 @@ export default function MedicalHistoryForm() {
         </div>
       )}
 
-      <YesNoRow
+{/*      <YesNoRow
         label="Nehmen Sie regelmässig Medikamente? (Wichtig auch: blutverdünnende Medikamente wie Marcoumar, Aspirin, Plavix?)"
         value={data.regularMedication}
         onChange={(v) => updateData({ regularMedication: v })}
@@ -173,7 +173,7 @@ export default function MedicalHistoryForm() {
           />
         </div>
       )}
-
+*/}
       <YesNoRow
         label="Ist Ihre normale körperliche Aktivität oder Ihr Allgemeinzustand beeinträchtigt?"
         value={data.limitedActivity}
