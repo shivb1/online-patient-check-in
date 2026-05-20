@@ -43,7 +43,8 @@ export type IntakeData = {
   regularGPWhy?: string;
 
   regularMedication?: YesNo;
-  medications?: string; // Freitext/“separate Liste”
+  takenLast7Days?: YesNo;
+  medications?: string;
   medicationList?: string[];
   limitedActivity?: YesNo;
   limitedActivityHow?: string;
@@ -145,6 +146,7 @@ const defaultData: IntakeData = {
   regularGPWhy: "",
 
   regularMedication: undefined,
+  takenLast7Days: undefined,
   medications: "",
 
   limitedActivity: undefined,
