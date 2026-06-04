@@ -30,8 +30,9 @@ export type IntakeData = {
   emergencyFirstName?: string;
   emergencyLastName?: string;
   emergencyAddress?: string;
+  emergencyZip?: string;  // NEU
+  emergencyCity?: string; // NEU
   emergencyPhone?: string;
-
 
   // ========= Medical History (nach deinem PDF) =========
   hospitalized?: YesNo;
@@ -135,6 +136,8 @@ const defaultData: IntakeData = {
   emergencyFirstName: "",
   emergencyLastName: "",
   emergencyAddress: "",
+  emergencyZip: "",  // NEU
+  emergencyCity: "", // NEU
   emergencyPhone: "",
 
   hospitalized: undefined,

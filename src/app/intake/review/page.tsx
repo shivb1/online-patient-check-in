@@ -25,6 +25,8 @@ export default function ReviewPage() {
     (data.emergencyFirstName ?? "").trim() ||
     (data.emergencyLastName ?? "").trim() ||
     (data.emergencyAddress ?? "").trim() ||
+    (data.emergencyZip ?? "").trim() ||
+    (data.emergencyCity ?? "").trim() ||
     (data.emergencyPhone ?? "").trim();
 
   function openGate() {
@@ -106,6 +108,10 @@ export default function ReviewPage() {
             <ReviewRow label="Vorname" value={data.emergencyFirstName} />
             <ReviewRow label="Nachname" value={data.emergencyLastName} />
             <ReviewRow label="Adresse" value={data.emergencyAddress} />
+            {/* NEU: PLZ und Ort */}
+            <ReviewRow label="PLZ" value={data.emergencyZip} />
+            <ReviewRow label="Ort" value={data.emergencyCity} />
+            
             <ReviewRow label="Telefon" value={data.emergencyPhone} />
           </ReviewSection>
         )}
