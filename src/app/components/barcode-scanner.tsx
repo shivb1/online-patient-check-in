@@ -1,83 +1,63 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
-
-// Der Wächter regelt den Verkehr zur Kamera-Hardware im Hintergrund
-let cameraLock = Promise.resolve();
+import React, { useEffect, useRef } from "react";
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 interface BarcodeScannerProps {
   onScanSuccess: (decodedText: string) => void;
+  onScanError?: (errorMessage: string) => void;
 }
 
-export default function BarcodeScanner({ onScanSuccess }: BarcodeScannerProps) {
-  const [isStarting, setIsStarting] = useState(true);
-  const READER_ID = "stable-barcode-reader";
+export default function BarcodeScanner({ onScanSuccess, onScanError }: BarcodeScannerProps) {
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let isMounted = true;
-    let html5QrCode: Html5Qrcode | null = null;
+    // Verhindert doppeltes Rendern im React Strict Mode
+    if (!scannerContainerRef.current) return;
 
-    cameraLock = cameraLock.then(async () => {
-      if (!isMounted) return;
-      
-      setIsStarting(true);
+    // Konfiguration des Scanners
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+      "emediplan-reader",
+      { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [] // Lässt die Bibliothek automatisch den besten Typ (2D Barcode/QR) wählen
+      },
+      false
+    );
 
-      // DOM restlos leeren, falls Reste eines alten Scans hängen geblieben sind
-      const readerElement = document.getElementById(READER_ID);
-      if (readerElement) {
-        readerElement.innerHTML = "";
+    html5QrcodeScanner.render(
+      (decodedText) => {
+        // Bei Erfolg: Scanner stoppen und Text an die Eltern-Komponente übergeben
+        html5QrcodeScanner.clear().catch(console.error);
+        onScanSuccess(decodedText);
+      },
+      (errorMessage) => {
+        // Fehler (z.B. kein Code im Bild) werden hier kontinuierlich geworfen, 
+        // wir leiten sie nur weiter, falls die Eltern-Komponente sie braucht.
+        if (onScanError) {
+          onScanError(errorMessage);
+        }
       }
+    );
 
-      html5QrCode = new Html5Qrcode(READER_ID, { verbose: false });
-
-      try {
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 100 } },
-          (decodedText) => {
-            if (isMounted) onScanSuccess(decodedText);
-          },
-          () => {} // Leere Bilder ignorieren
-        );
-        
-        if (isMounted) setIsStarting(false);
-      } catch (err) {
-        console.error("Kamerafehler:", err);
-        if (isMounted) setIsStarting(false);
-      }
-    });
-
+    // Cleanup-Funktion, wenn die Komponente den Bildschirm verlässt
     return () => {
-      isMounted = false;
-      if (html5QrCode) {
-        cameraLock = cameraLock.then(async () => {
-          try {
-            await html5QrCode!.stop();
-            html5QrCode!.clear();
-          } catch (e) {
-            // Ignorieren, falls die Kamera bereits geschlossen war
-          }
-        });
-      }
+      html5QrcodeScanner.clear().catch(console.error);
     };
-  }, [onScanSuccess]);
+  }, [onScanSuccess, onScanError]);
 
   return (
-    <div className="w-full max-w-sm mx-auto bg-white p-2 rounded-lg shadow-sm relative">
-      <div id={READER_ID} className="min-h-[150px] overflow-hidden rounded bg-black"></div>
-      
-      {isStarting && (
-        <div className="absolute inset-0 flex items-center justify-center text-white text-xs z-10 animate-pulse">
-          ⏳ Kamera startet...
-        </div>
-      )}
-      
-      {!isStarting && (
-        <p className="text-xs text-center text-slate-500 mt-2">
-          Halten Sie den Strichcode in das markierte Feld.
-        </p>
-      )}
+    <div className="w-full max-w-md mx-auto">
+      <div 
+        id="emediplan-reader" 
+        ref={scannerContainerRef} 
+        className="overflow-hidden rounded-xl border-2 border-blue-200 bg-white shadow-sm"
+      ></div>
+      <p className="text-sm text-gray-500 text-center mt-2">
+        Bitte scannen Sie den Code auf dem eMediplan.
+      </p>
     </div>
   );
 }

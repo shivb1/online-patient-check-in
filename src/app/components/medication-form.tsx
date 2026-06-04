@@ -2,8 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { useIntake, YesNo } from "../context/IntakeContext";
-import BarcodeScanner from "./barcode-scanner"; // Import unserer Kamera
+import BarcodeScanner from "./barcode-scanner";
 
+/**
+ * UI-Komponente für Sektions-Überschriften.
+ * @param {Object} props - Die Eigenschaften der Komponente.
+ * @param {string} props.title - Der Titel, der angezeigt werden soll.
+ */
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="mt-8 mb-4">
@@ -14,6 +19,13 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
+/**
+ * UI-Komponente für eine Ja/Nein Auswahl mittels Radio-Buttons.
+ * @param {Object} props - Die Eigenschaften der Komponente.
+ * @param {string} props.label - Die Frage oder Beschriftung.
+ * @param {YesNo} [props.value] - Der aktuell ausgewählte Wert ("yes" oder "no").
+ * @param {(v: YesNo) => void} props.onChange - Callback-Funktion bei Wertänderung.
+ */
 function YesNoRow({ label, value, onChange }: { label: string; value?: YesNo; onChange: (v: YesNo) => void; }) {
   const base = "inline-flex items-center gap-2 cursor-pointer select-none";
   const radio = "h-4 w-4 accent-slate-700";
@@ -21,23 +33,38 @@ function YesNoRow({ label, value, onChange }: { label: string; value?: YesNo; on
     <div className="grid grid-cols-12 gap-3 py-3 border-b border-slate-200">
       <div className="col-span-12 md:col-span-8 text-sm text-slate-900">{label}</div>
       <div className="col-span-12 md:col-span-4 flex md:justify-end gap-6">
-        <label className={base}><input className={radio} type="radio" checked={value === "yes"} onChange={() => onChange("yes")} /><span className="text-sm">ja</span></label>
-        <label className={base}><input className={radio} type="radio" checked={value === "no"} onChange={() => onChange("no")} /><span className="text-sm">nein</span></label>
+        <label className={base}>
+          <input className={radio} type="radio" checked={value === "yes"} onChange={() => onChange("yes")} />
+          <span className="text-sm">ja</span>
+        </label>
+        <label className={base}>
+          <input className={radio} type="radio" checked={value === "no"} onChange={() => onChange("no")} />
+          <span className="text-sm">nein</span>
+        </label>
       </div>
     </div>
   );
 }
 
+/**
+ * Interface für ein von der API zurückgegebenes Medikament.
+ */
 interface MedicationResult {
   id: string;
   name: string;
   description?: string;
 }
 
+/**
+ * Interface für ein ausgewähltes Medikament inklusive Zuweisung (Dauer- oder Akutmedikation).
+ */
 interface SelectedMedication extends MedicationResult {
   category: "regular" | "acute";
 }
 
+/**
+ * Hauptkomponente zur Erfassung der Medikation (manuelle Suche, GTIN-Scan und eMediplan-Scan).
+ */
 export default function MedicationForm() {
   const { data, updateData } = useIntake();
   const [isMounted, setIsMounted] = useState(false);
@@ -47,9 +74,13 @@ export default function MedicationForm() {
   const [searchResults, setSearchResults] = useState<MedicationResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // States für den Scanner
+  // States für den GTIN-Scanner (einzelne Medikamente)
   const [showScanner, setShowScanner] = useState(false);
   const [isFetchingBarcode, setIsFetchingBarcode] = useState(false);
+
+  // States für den eMediplan-Scanner (CHMED-String)
+  const [showEmediplanScanner, setShowEmediplanScanner] = useState(false);
+  const [isFetchingEmediplan, setIsFetchingEmediplan] = useState(false);
 
   const [selectedMeds, setSelectedMeds] = useState<SelectedMedication[]>([]);
 
@@ -57,6 +88,10 @@ export default function MedicationForm() {
     setIsMounted(true);
   }, []);
 
+  /**
+   * Synchronisiert die lokale Liste der ausgewählten Medikamente mit dem globalen Kontext.
+   * @param {SelectedMedication[]} meds - Die aktuelle Liste der ausgewählten Medikamente.
+   */
   const syncContext = (meds: SelectedMedication[]) => {
     const formattedString = meds.map((m) => {
       const catText = m.category === "regular" ? "Dauermedikation" : "Akut";
@@ -65,9 +100,11 @@ export default function MedicationForm() {
     updateData({ medications: formattedString });
   };
 
-  // Effekt für die Textsuche
+  /**
+   * Effekt-Hook für die Debounced-Textsuche bei Documedis.
+   * Feuert erst, wenn der Benutzer aufhört zu tippen (300ms Verzögerung).
+   */
   useEffect(() => {
-    // NEU: Ein Wächter, der sich merkt, ob DIESE Suche noch aktuell ist
     let isActive = true;
 
     if (searchTerm.trim().length < 3) {
@@ -85,8 +122,6 @@ export default function MedicationForm() {
         
         const apiData: MedicationResult[] = await res.json();
         
-        // NEU: Die Resultate NUR anzeigen, wenn der Nutzer den Text
-        // in der Zwischenzeit nicht schon wieder gelöscht oder geändert hat
         if (isActive) {
           setSearchResults(apiData);
         }
@@ -102,13 +137,15 @@ export default function MedicationForm() {
     }, 300);
 
     return () => {
-      // Wenn der Nutzer weitertippt oder löscht, wird diese Aufräumfunktion ausgeführt.
-      // Die alte Suche wird sofort für "tot" erklärt.
       isActive = false; 
       clearTimeout(delayDebounceFn);
     };
   }, [searchTerm]);
 
+  /**
+   * Fügt ein gefundenes Medikament der lokalen Liste hinzu.
+   * @param {MedicationResult} med - Das hinzuzufügende Medikament.
+   */
   const addMedication = (med: MedicationResult) => {
     if (!selectedMeds.some(m => m.id === med.id)) {
       const defaultCat = (data.regularMedication !== "yes" && data.takenLast7Days === "yes") ? "acute" : "regular";
@@ -121,13 +158,15 @@ export default function MedicationForm() {
     setSearchResults([]);
   };
 
-  // Funktion, die aufgerufen wird, wenn die Kamera einen Code findet
+  /**
+   * Verarbeitet den Text (GTIN), der vom Barcode-Scanner (einzelne Medikamente) erfasst wurde.
+   * @param {string} decodedText - Der gescannte Barcode-String.
+   */
   const handleBarcodeScanned = async (decodedText: string) => {
-    setShowScanner(false); // Kamera schliessen
-    setIsFetchingBarcode(true); // Lade-Status anzeigen
+    setShowScanner(false);
+    setIsFetchingBarcode(true);
 
     try {
-      // Wir schicken den Barcode an das Backend
       const res = await fetch(`/api/documedis/barcode?gtin=${decodedText}`);
       const apiData = await res.json();
 
@@ -136,7 +175,6 @@ export default function MedicationForm() {
         return;
       }
 
-      // Gefundenes Medikament direkt zur Liste hinzufügen
       addMedication({
         id: apiData.id,
         name: apiData.name,
@@ -150,12 +188,65 @@ export default function MedicationForm() {
     }
   };
 
+/**
+   * Verarbeitet den Text (CHMED-String), der vom eMediplan-Scanner erfasst wurde.
+   * @param {string} decodedText - Der rohe eMediplan-String.
+   */
+  const handleEmediplanScanned = async (decodedText: string) => {
+    setShowEmediplanScanner(false);
+    setIsFetchingEmediplan(true);
+
+    try {
+      const res = await fetch("/api/documedis/emediplan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chmedString: decodedText })
+      });
+      
+      const apiData = await res.json();
+
+      if (!res.ok) {
+        alert(`Fehler: ${apiData.error || "eMediplan konnte nicht verarbeitet werden."}`);
+        return;
+      }
+
+      // Gehe durch alle Medikamente, die der eMediplan enthalten hat, 
+      // und füge sie nacheinander unserer Liste hinzu
+      if (apiData.medications && apiData.medications.length > 0) {
+        apiData.medications.forEach((med: MedicationResult) => {
+          addMedication({
+            id: med.id,
+            name: med.name,
+            description: med.description,
+          });
+        });
+        alert(`${apiData.medications.length} Medikamente aus dem eMediplan erfolgreich importiert!`);
+      } else {
+        alert("Der gescannte eMediplan enthielt keine Medikamente.");
+      }
+
+    } catch (error) {
+      alert("Es gab ein Problem bei der Kommunikation mit dem Server.");
+    } finally {
+      setIsFetchingEmediplan(false);
+    }
+  };
+
+  /**
+   * Aktualisiert die Kategorie (Akut/Dauer) eines bereits erfassten Medikaments.
+   * @param {string} id - Die ID des Medikaments.
+   * @param {"regular" | "acute"} newCategory - Die neu gewählte Kategorie.
+   */
   const updateMedCategory = (id: string, newCategory: "regular" | "acute") => {
     const updated = selectedMeds.map(m => m.id === id ? { ...m, category: newCategory } : m);
     setSelectedMeds(updated);
     syncContext(updated);
   };
 
+  /**
+   * Entfernt ein Medikament aus der lokalen Liste.
+   * @param {string} id - Die ID des zu entfernenden Medikaments.
+   */
   const removeMedication = (id: string) => {
     const updated = selectedMeds.filter(m => m.id !== id);
     setSelectedMeds(updated);
@@ -201,32 +292,52 @@ export default function MedicationForm() {
             <div className="col-span-12 lg:col-span-6 grid grid-cols-2 gap-2 lg:mt-5">
               <button
                 type="button"
-                onClick={() => setShowScanner(!showScanner)}
+                onClick={() => {
+                  setShowScanner(!showScanner);
+                  setShowEmediplanScanner(false);
+                }}
                 className="px-3 py-2 text-xs md:text-sm font-semibold rounded-md bg-slate-800 text-white hover:bg-slate-900 transition flex items-center justify-center gap-1 h-[38px]"
               >
-                {showScanner ? "❌ Kamera schliessen" : "📸 Medikament scannen"}
+                {showScanner ? "❌ Scanner schliessen" : "📸 Einzel-Medikament scannen"}
               </button>
               <button
                 type="button"
-                // eMediplan Button ist wieder reiner Platzhalter
-                onClick={() => console.log("eMediplan Scan deaktiviert")}
-                className="px-3 py-2 text-xs md:text-sm font-semibold rounded-md bg-slate-800 text-white hover:bg-slate-900 transition flex items-center justify-center gap-1 h-[38px]"
+                onClick={() => {
+                  setShowEmediplanScanner(!showEmediplanScanner);
+                  setShowScanner(false);
+                }}
+                className="px-3 py-2 text-xs md:text-sm font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 transition flex items-center justify-center gap-1 h-[38px]"
               >
-                📋 eMediplan scannen
+                {showEmediplanScanner ? "❌ Scanner schliessen" : "📋 eMediplan scannen"}
               </button>
             </div>
           </div>
 
-          {/* Kamera-UI & Ladeanzeige --- */}
+          {/* GTIN Scanner UI --- */}
           {showScanner && (
             <div className="mt-4 border-2 border-dashed border-blue-300 p-2 rounded-lg bg-blue-50">
+              <h3 className="text-sm font-semibold text-center mb-2">Strichcode auf der Verpackung scannen</h3>
               <BarcodeScanner onScanSuccess={handleBarcodeScanned} />
+            </div>
+          )}
+
+          {/* eMediplan Scanner UI --- */}
+          {showEmediplanScanner && (
+            <div className="mt-4 border-2 border-dashed border-green-300 p-2 rounded-lg bg-green-50">
+              <h3 className="text-sm font-semibold text-center mb-2">2D-Code des eMediplans scannen</h3>
+              <BarcodeScanner onScanSuccess={handleEmediplanScanned} />
             </div>
           )}
 
           {isFetchingBarcode && (
             <div className="mt-4 p-3 bg-yellow-50 text-yellow-800 text-sm rounded border border-yellow-200 animate-pulse text-center">
               ⏳ Suche Medikament in der Documedis-Datenbank...
+            </div>
+          )}
+
+          {isFetchingEmediplan && (
+            <div className="mt-4 p-3 bg-yellow-50 text-yellow-800 text-sm rounded border border-yellow-200 animate-pulse text-center">
+              ⏳ Verarbeite eMediplan Daten...
             </div>
           )}
 
