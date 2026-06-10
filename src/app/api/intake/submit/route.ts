@@ -25,10 +25,12 @@ type IntakeData = {
   phonePrivate?: string;
   email?: string;
 
-  // Emergency
+  // Emergency (NEU ERGÄNZT)
   emergencyFirstName?: string;
   emergencyLastName?: string;
   emergencyAddress?: string;
+  emergencyZip?: string;
+  emergencyCity?: string;
   emergencyPhone?: string;
 
   // General
@@ -98,11 +100,14 @@ function isValidISODate(dateStr: string): boolean {
   return !Number.isNaN(d.getTime());
 }
 
+// NEU: zip und city in der Überprüfung
 function hasEmergency(d: IntakeData): boolean {
   return (
     t(d.emergencyFirstName) !== "" ||
     t(d.emergencyLastName) !== "" ||
     t(d.emergencyAddress) !== "" ||
+    t(d.emergencyZip) !== "" ||
+    t(d.emergencyCity) !== "" ||
     t(d.emergencyPhone) !== ""
   );
 }
@@ -179,19 +184,29 @@ export async function POST(req: Request) {
         await client.query(`INSERT INTO contact (patient_id, address, zip, city, phone, phone_private, email) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [patientId, address, zip, city, phone, phonePrivate, email]);
       }
 
-      // 3) Emergency
+      // 3) Emergency (NEU ERGÄNZT MIT ZIP UND CITY)
       if (hasEmergency(data)) {
         await client.query(`DELETE FROM emergency_contact WHERE patient_id = $1`, [patientId]);
-        await client.query(`INSERT INTO emergency_contact (patient_id, first_name, last_name, address, phone) VALUES ($1, $2, $3, $4, $5)`, [patientId, t(data.emergencyFirstName) || null, t(data.emergencyLastName) || null, t(data.emergencyAddress) || null, t(data.emergencyPhone) || null]);
+        await client.query(`
+          INSERT INTO emergency_contact (patient_id, first_name, last_name, address, zip, city, phone) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [
+          patientId, 
+          t(data.emergencyFirstName) || null, 
+          t(data.emergencyLastName) || null, 
+          t(data.emergencyAddress) || null, 
+          t(data.emergencyZip) || null, 
+          t(data.emergencyCity) || null, 
+          t(data.emergencyPhone) || null
+        ]);
       }
 
-      // 4) Medical General (Komplett)
+      // 4) Medical General
       const mg = await client.query(`SELECT id FROM medical_general WHERE patient_id = $1 LIMIT 1`, [patientId]);
       const mgValues = [
         patientId, ynToBool(data.hospitalized), t(data.hospitalizedWhen) || null, t(data.hospitalizedWhere) || null, t(data.hospitalizedWhy) || null,
         ynToBool(data.regularGP), t(data.regularGPWhy) || null, ynToBool(data.regularMedication), t(data.medications) || null,
         ynToBool(data.allergiesFlag), t(data.allergies) || null, weightKg, heightCm,
-        // Neue Felder
         ynToBool(data.limitedActivity), t(data.limitedActivityHow) || null, t(data.limitedActivitySince) || null,
         ynToBool(data.pregnantPossible), ynToBool(data.breastfeeding),
         ynToBool(data.anesthesia), t(data.anesthesiaWhy) || null, ynToBool(data.anesthesiaProblems), t(data.anesthesiaProblemsWhich) || null, ynToBool(data.familyAnesthesiaProblems)
@@ -219,7 +234,7 @@ export async function POST(req: Request) {
         `, mgValues);
       }
 
-      // 5) Medical Cardio (War bereits komplett)
+      // 5) Medical Cardio
       const mc = await client.query(`SELECT id FROM medical_cardio WHERE patient_id = $1 LIMIT 1`, [patientId]);
       const cardioValues = [patientId, ynToBool(data.bloodPressure), ynToBool(data.exertionPainBreath), ynToBool(data.flatLyingProblem), ynToBool(data.irregularPulse), ynToBool(data.nightSymptoms), ynToBool(data.swollenLegs), ynToBool(data.thrombosis)];
       if ((mc.rowCount ?? 0) > 0) {
@@ -228,7 +243,7 @@ export async function POST(req: Request) {
         await client.query(`INSERT INTO medical_cardio (patient_id, blood_pressure, exertion_pain_breath, flat_lying_problem, irregular_pulse, night_symptoms, swollen_legs, thrombosis) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, cardioValues);
       }
 
-      // 6) Medical Lung (Komplett)
+      // 6) Medical Lung
       const ml = await client.query(`SELECT id FROM medical_lung WHERE patient_id = $1 LIMIT 1`, [patientId]);
       const lungValues = [patientId, ynToBool(data.smoker), ynToBool(data.dyspnea), ynToBool(data.asthma), ynToBool(data.inhaler)];
       if ((ml.rowCount ?? 0) > 0) {
@@ -237,7 +252,7 @@ export async function POST(req: Request) {
         await client.query(`INSERT INTO medical_lung (patient_id, smoker, dyspnea, asthma, inhaler) VALUES ($1,$2,$3,$4,$5)`, lungValues);
       }
 
-      // 7) Medical Other (Komplett)
+      // 7) Medical Other
       const mo = await client.query(`SELECT id FROM medical_other WHERE patient_id = $1 LIMIT 1`, [patientId]);
       const otherValues = [
         patientId, ynToBool(data.diabetes), ynToBool(data.cancer), ynToBool(data.coagulation),
