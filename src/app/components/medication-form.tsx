@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useIntake, YesNo } from "../context/IntakeContext";
 import BarcodeScanner from "./barcode-scanner"; // Import unserer Kamera
 
+/**
+ * Visueller Header für Formular-Sektionen.
+ */
 function SectionHeader({ title }: { title: string }) {
   return (
     <div className="mt-8 mb-4">
@@ -14,6 +17,9 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
+/**
+ * Standardisierte Ja/Nein-Auswahlzeile.
+ */
 function YesNoRow({ label, value, onChange }: { label: string; value?: YesNo; onChange: (v: YesNo) => void; }) {
   const base = "inline-flex items-center gap-2 cursor-pointer select-none";
   const radio = "h-4 w-4 accent-slate-700";
@@ -28,16 +34,25 @@ function YesNoRow({ label, value, onChange }: { label: string; value?: YesNo; on
   );
 }
 
+/**
+ * Typisierung für die Medikamenten-Ergebnisse aus der API.
+ */
 interface MedicationResult {
   id: string;
   name: string;
   description?: string;
 }
 
+/**
+ * Erweitertes Medikamenten-Interface, das zusätzlich die Einnahme-Kategorie enthält.
+ */
 interface SelectedMedication extends MedicationResult {
   category: "regular" | "acute";
 }
 
+/**
+ * Hauptkomponente für die Medikamenten-Erfassung.
+ */
 export default function MedicationForm() {
   const { data, updateData } = useIntake();
   const [isMounted, setIsMounted] = useState(false);
@@ -52,22 +67,52 @@ export default function MedicationForm() {
   const [isFetchingBarcode, setIsFetchingBarcode] = useState(false);
 
   const [selectedMeds, setSelectedMeds] = useState<SelectedMedication[]>([]);
+  const hasRestoredMeds = useRef(false);
 
+  /**
+   * Stellt die lokal zwischengespeicherten Medikamente beim Neuladen der Seite wieder her.
+   */
   useEffect(() => {
     setIsMounted(true);
+    if (!hasRestoredMeds.current) {
+      const backup = sessionStorage.getItem("medicationListBackup");
+      if (backup) {
+        try {
+          setSelectedMeds(JSON.parse(backup) as SelectedMedication[]);
+        } catch (err) {
+          console.error("Fehler beim Wiederherstellen:", err);
+        }
+      }
+      hasRestoredMeds.current = true;
+    }
   }, []);
 
+  /**
+   * Synchronisiert das lokale Array mit dem globalen React-Context
+   * und formatiert die Daten so, dass sie für die Datenbank bereit sind.
+   */
   const syncContext = (meds: SelectedMedication[]) => {
-    const formattedString = meds.map((m) => {
+    let formattedString = meds.map((m) => {
       const catText = m.category === "regular" ? "Dauermedikation" : "Akut";
       return `${m.name} (${catText})`;
     }).join(", ");
-    updateData({ medications: formattedString });
+    
+    if (formattedString.length > 200) {
+      formattedString = formattedString.substring(0, 197) + "...";
+    }
+
+    // Speichert den String UND das rohe JSON-Array im Context
+    updateData({ 
+      medications: formattedString,
+      medicationsRaw: meds 
+    });
+    sessionStorage.setItem("medicationListBackup", JSON.stringify(meds));
   };
 
-  // Effekt für die Textsuche
+  /**
+   * Sucht in der Documedis-API nach Medikamenten basierend auf der Texteingabe.
+   */
   useEffect(() => {
-    // NEU: Ein Wächter, der sich merkt, ob DIESE Suche noch aktuell ist
     let isActive = true;
 
     if (searchTerm.trim().length < 3) {
@@ -83,32 +128,25 @@ export default function MedicationForm() {
         if (!contentType || !contentType.includes("application/json")) throw new Error("Kein JSON");
         if (!res.ok) throw new Error(`Fehler: ${res.status}`);
         
-        const apiData: MedicationResult[] = await res.json();
+        const apiData = await res.json() as MedicationResult[];
         
-        // NEU: Die Resultate NUR anzeigen, wenn der Nutzer den Text
-        // in der Zwischenzeit nicht schon wieder gelöscht oder geändert hat
-        if (isActive) {
-          setSearchResults(apiData);
-        }
+        if (isActive) setSearchResults(apiData);
       } catch (error) {
-        if (isActive) {
-          setSearchResults([]);
-        }
+        if (isActive) setSearchResults([]);
       } finally {
-        if (isActive) {
-          setIsSearching(false);
-        }
+        if (isActive) setIsSearching(false);
       }
     }, 300);
 
     return () => {
-      // Wenn der Nutzer weitertippt oder löscht, wird diese Aufräumfunktion ausgeführt.
-      // Die alte Suche wird sofort für "tot" erklärt.
       isActive = false; 
       clearTimeout(delayDebounceFn);
     };
   }, [searchTerm]);
 
+  /**
+   * Fügt ein Medikament zur lokalen Liste hinzu.
+   */
   const addMedication = (med: MedicationResult) => {
     if (!selectedMeds.some(m => m.id === med.id)) {
       const defaultCat = (data.regularMedication !== "yes" && data.takenLast7Days === "yes") ? "acute" : "regular";
@@ -121,22 +159,22 @@ export default function MedicationForm() {
     setSearchResults([]);
   };
 
-  // Funktion, die aufgerufen wird, wenn die Kamera einen Code findet
+  /**
+   * Verarbeitet den eingescannten Barcode.
+   */
   const handleBarcodeScanned = async (decodedText: string) => {
-    setShowScanner(false); // Kamera schliessen
-    setIsFetchingBarcode(true); // Lade-Status anzeigen
+    setShowScanner(false);
+    setIsFetchingBarcode(true);
 
     try {
-      // Wir schicken den Barcode an das Backend
       const res = await fetch(`/api/documedis/barcode?gtin=${decodedText}`);
-      const apiData = await res.json();
+      const apiData = await res.json() as MedicationResult & { error?: string };
 
       if (!res.ok) {
         alert(`Fehler: ${apiData.error || "Medikament nicht gefunden."}`);
         return;
       }
 
-      // Gefundenes Medikament direkt zur Liste hinzufügen
       addMedication({
         id: apiData.id,
         name: apiData.name,
@@ -150,12 +188,18 @@ export default function MedicationForm() {
     }
   };
 
+  /**
+   * Aktualisiert die Einnahmekategorie (Akut vs. Dauer).
+   */
   const updateMedCategory = (id: string, newCategory: "regular" | "acute") => {
     const updated = selectedMeds.map(m => m.id === id ? { ...m, category: newCategory } : m);
     setSelectedMeds(updated);
     syncContext(updated);
   };
 
+  /**
+   * Entfernt ein Medikament aus der Liste.
+   */
   const removeMedication = (id: string) => {
     const updated = selectedMeds.filter(m => m.id !== id);
     setSelectedMeds(updated);
@@ -208,7 +252,6 @@ export default function MedicationForm() {
               </button>
               <button
                 type="button"
-                // eMediplan Button ist wieder reiner Platzhalter
                 onClick={() => console.log("eMediplan Scan deaktiviert")}
                 className="px-3 py-2 text-xs md:text-sm font-semibold rounded-md bg-slate-800 text-white hover:bg-slate-900 transition flex items-center justify-center gap-1 h-[38px]"
               >
@@ -217,7 +260,6 @@ export default function MedicationForm() {
             </div>
           </div>
 
-          {/* Kamera-UI & Ladeanzeige --- */}
           {showScanner && (
             <div className="mt-4 border-2 border-dashed border-blue-300 p-2 rounded-lg bg-blue-50">
               <BarcodeScanner onScanSuccess={handleBarcodeScanned} />

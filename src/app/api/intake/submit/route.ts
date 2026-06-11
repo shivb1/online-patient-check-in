@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/app/lib/db";
+import http from "http"; // <-- NEU: Nativer Node.js HTTP Client
 
 type YesNo = "yes" | "no";
 type Gender = "male" | "female" | "other" | "";
 
+/**
+ * Typdefinition für alle eingehenden Formulardaten des Patienten-Check-ins.
+ */
 type IntakeData = {
   // Case
   caseToken?: string;
@@ -25,7 +29,7 @@ type IntakeData = {
   phonePrivate?: string;
   email?: string;
 
-  // Emergency (NEU ERGÄNZT)
+  // Emergency
   emergencyFirstName?: string;
   emergencyLastName?: string;
   emergencyAddress?: string;
@@ -37,6 +41,7 @@ type IntakeData = {
   hospitalized?: YesNo; hospitalizedWhen?: string; hospitalizedWhere?: string; hospitalizedWhy?: string;
   regularGP?: YesNo; regularGPWhy?: string;
   regularMedication?: YesNo; medications?: string;
+  medicationsRaw?: unknown[]; // Das strukturierte Array für den JSONB FHIR Export
   allergiesFlag?: YesNo; allergies?: string;
   limitedActivity?: YesNo; limitedActivityHow?: string; limitedActivitySince?: string;
   pregnantPossible?: YesNo; breastfeeding?: YesNo;
@@ -61,7 +66,10 @@ type IntakeData = {
 };
 
 // ===== CORS =====
-function withCors(res: NextResponse) {
+/**
+ * Ergänzt die Antwort um CORS-Header für die geräteübergreifende Kommunikation.
+ */
+function withCors(res: NextResponse): NextResponse {
   res.headers.set("Access-Control-Allow-Origin", "*");
   res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.headers.set("Access-Control-Allow-Headers", "Content-Type");
@@ -100,7 +108,6 @@ function isValidISODate(dateStr: string): boolean {
   return !Number.isNaN(d.getTime());
 }
 
-// NEU: zip und city in der Überprüfung
 function hasEmergency(d: IntakeData): boolean {
   return (
     t(d.emergencyFirstName) !== "" ||
@@ -120,6 +127,10 @@ function parseIntOrNull(v: string): number | null {
   return Math.trunc(n);
 }
 
+/**
+ * Verarbeitet das Eintreffen des Patienten-Check-ins. Speichert die Daten 
+ * in PostgreSQL und überträgt das generierte FHIR Bundle direkt an Mirth Connect.
+ */
 export async function POST(req: Request) {
   try {
     const data = (await req.json()) as IntakeData;
@@ -157,6 +168,9 @@ export async function POST(req: Request) {
     const phonePrivate = t(data.phonePrivate) || null;
     const email = t(data.email) || null;
 
+    // JSONB für strukturierte Medikamente generieren
+    const medsJson = data.medicationsRaw ? JSON.stringify(data.medicationsRaw) : null;
+
     // ===== DB Transaction =====
     const client = await pool.connect();
     try {
@@ -184,7 +198,7 @@ export async function POST(req: Request) {
         await client.query(`INSERT INTO contact (patient_id, address, zip, city, phone, phone_private, email) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [patientId, address, zip, city, phone, phonePrivate, email]);
       }
 
-      // 3) Emergency (NEU ERGÄNZT MIT ZIP UND CITY)
+      // 3) Emergency
       if (hasEmergency(data)) {
         await client.query(`DELETE FROM emergency_contact WHERE patient_id = $1`, [patientId]);
         await client.query(`
@@ -201,7 +215,7 @@ export async function POST(req: Request) {
         ]);
       }
 
-      // 4) Medical General
+      // 4) Medical General (inkl. medications_json Parameter 24)
       const mg = await client.query(`SELECT id FROM medical_general WHERE patient_id = $1 LIMIT 1`, [patientId]);
       const mgValues = [
         patientId, ynToBool(data.hospitalized), t(data.hospitalizedWhen) || null, t(data.hospitalizedWhere) || null, t(data.hospitalizedWhy) || null,
@@ -209,7 +223,8 @@ export async function POST(req: Request) {
         ynToBool(data.allergiesFlag), t(data.allergies) || null, weightKg, heightCm,
         ynToBool(data.limitedActivity), t(data.limitedActivityHow) || null, t(data.limitedActivitySince) || null,
         ynToBool(data.pregnantPossible), ynToBool(data.breastfeeding),
-        ynToBool(data.anesthesia), t(data.anesthesiaWhy) || null, ynToBool(data.anesthesiaProblems), t(data.anesthesiaProblemsWhich) || null, ynToBool(data.familyAnesthesiaProblems)
+        ynToBool(data.anesthesia), t(data.anesthesiaWhy) || null, ynToBool(data.anesthesiaProblems), t(data.anesthesiaProblemsWhich) || null, ynToBool(data.familyAnesthesiaProblems),
+        medsJson 
       ];
 
       if ((mg.rowCount ?? 0) > 0) {
@@ -220,7 +235,8 @@ export async function POST(req: Request) {
             allergies = $10, allergies_text = $11, weight_kg = $12, height_cm = $13,
             limited_activity = $14, limited_activity_how = $15, limited_activity_since = $16,
             pregnant_possible = $17, breastfeeding = $18,
-            anesthesia = $19, anesthesia_why = $20, anesthesia_problems = $21, anesthesia_problems_which = $22, family_anesthesia_problems = $23
+            anesthesia = $19, anesthesia_why = $20, anesthesia_problems = $21, anesthesia_problems_which = $22, family_anesthesia_problems = $23,
+            medications_json = $24
           WHERE patient_id = $1
         `, mgValues);
       } else {
@@ -229,8 +245,9 @@ export async function POST(req: Request) {
             patient_id, hospitalized, hospitalized_when, hospitalized_where, hospitalized_why,
             regular_gp, regular_gp_why, regular_medication, medications, allergies, allergies_text, weight_kg, height_cm,
             limited_activity, limited_activity_how, limited_activity_since, pregnant_possible, breastfeeding,
-            anesthesia, anesthesia_why, anesthesia_problems, anesthesia_problems_which, family_anesthesia_problems
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+            anesthesia, anesthesia_why, anesthesia_problems, anesthesia_problems_which, family_anesthesia_problems,
+            medications_json
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
         `, mgValues);
       }
 
@@ -279,8 +296,77 @@ export async function POST(req: Request) {
         `, otherValues);
       }
 
+      // Datenbank-Transaktion erfolgreich abschliessen
       await client.query("COMMIT");
-      return withCors(NextResponse.json({ ok: true, patientId, caseNumber: t(data.caseNumber) || null, caseToken: t(data.caseToken) || null }));
+
+      // ========================================================================
+      // AUTOMATISCHE ÜBERMITTLUNG AN DAS SPITALSYSTEM (MIRTH CONNECT)
+      // ========================================================================
+      
+      // Wir holen die Fallnummer sicherheitshalber direkt aus der Datenbank!
+      let currentCaseNumber = t(data.caseNumber);
+      if (!currentCaseNumber && patientId) {
+        const caseRes = await pool.query(`SELECT case_number FROM intake_case WHERE patient_id = $1 LIMIT 1`, [patientId]);
+        if ((caseRes.rowCount ?? 0) > 0) {
+          currentCaseNumber = caseRes.rows[0].case_number;
+        }
+      }
+
+      if (currentCaseNumber) {
+        try {
+          console.log(`\n[Mirth Debug] Starte FHIR-Generierung für Fall: ${currentCaseNumber}`);
+          
+          const localBaseUrl = "http://127.0.0.1:3000"; 
+          const fhirRes = await fetch(`${localBaseUrl}/api/fhir/export?caseNumber=${currentCaseNumber}`);
+          
+          if (!fhirRes.ok) {
+            console.error(`[Mirth Debug] Fehler beim internen FHIR-Abruf. HTTP Status: ${fhirRes.status}`);
+          } else {
+            const fhirBundle: unknown = await fhirRes.json();
+            const payload = JSON.stringify(fhirBundle);
+            const payloadLength = Buffer.byteLength(payload, 'utf8');
+
+            console.log(`[Mirth Debug] Payload Größe: ${payloadLength} Bytes`);
+            console.log(`[Mirth Debug] Sende via nativem Node HTTP an Port 8081...`);
+
+            // Wir nutzen native HTTP Requests statt Next.js fetch, um Stream-Abbrüche zu verhindern
+            const status = await new Promise<number>((resolve, reject) => {
+              const options = {
+                hostname: '127.0.0.1',
+                port: 8081,
+                path: '/fhir-receiver/',
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json', // oder 'text/plain', beides geht nun dank Raw in Mirth
+                  'Content-Length': payloadLength
+                }
+              };
+
+              const req = http.request(options, (res) => {
+                resolve(res.statusCode || 500);
+              });
+
+              req.on('error', (e) => reject(e));
+
+              // Hier wird der Body GARANTIERT physisch in den Socket geschrieben
+              req.write(payload);
+              req.end();
+            });
+
+            if (status >= 200 && status < 300) {
+              console.log(`[Mirth Debug] ✅ ERFOLG! Mirth hat das Paket für ${currentCaseNumber} akzeptiert.`);
+            } else {
+              console.error(`[Mirth Debug] ❌ Mirth hat die Annahme verweigert. HTTP Status: ${status}`);
+            }
+          }
+        } catch (mirthErr) {
+          console.error("[Mirth Debug] ❌ Kritischer Fehler bei der Hintergrundübertragung:", mirthErr);
+        }
+      } else {
+        console.log("\n[Mirth Debug] ⚠️ Keine Fallnummer gefunden. Abbruch des Mirth-Exports.");
+      }
+
+      return withCors(NextResponse.json({ ok: true, patientId, caseNumber: currentCaseNumber || null, caseToken: t(data.caseToken) || null }));
     } catch (e) {
       await client.query("ROLLBACK");
       console.error("❌ intake/submit db error:", e);
