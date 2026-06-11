@@ -47,6 +47,7 @@ export type IntakeData = {
   takenLast7Days?: YesNo;
   medications?: string;
   medicationList?: string[];
+  medicationsRaw?: unknown[];
   limitedActivity?: YesNo;
   limitedActivityHow?: string;
   limitedActivitySince?: string;

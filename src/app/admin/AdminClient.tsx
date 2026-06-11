@@ -48,7 +48,6 @@ function isISODate(v: string) {
 }
 
 function getDefaultQrBaseUrl() {
-  // Default: aktuelle Origin (kann localhost sein)
   if (typeof window === "undefined") return "";
   return window.location.origin;
 }
@@ -126,8 +125,7 @@ export default function AdminClient() {
     e.preventDefault();
     setError("");
     setSearchMsg("");
-    setCaseResult(null); // optional: wenn du neuen Fall machst, kann man auch stehen lassen; ich lasse es bewusst NICHT auto-clearen
-    // Wenn du es stehen lassen willst: diese Zeile entfernen.
+    setCaseResult(null);
 
     const ln = searchLastName.trim();
     const bd = searchBirthDate.trim();
@@ -251,7 +249,7 @@ export default function AdminClient() {
         body: JSON.stringify({
           firstName: fn,
           lastName: ln,
-          birthDate: bd, // ISO
+          birthDate: bd, 
           ahvNumber: ahvNormalized,
           gender: newGender || "",
         }),
@@ -264,21 +262,17 @@ export default function AdminClient() {
         return;
       }
 
-      // >>> WICHTIG: neuen Patienten direkt in die Resultliste setzen + auswählen
       setResults([json.patient]);
       setSelectedPatientId(json.patient.id);
 
-      // Suchfelder auch setzen (damit "Fall erstellen" sauber passt)
       setSearchFirstName(json.patient.firstName);
       setSearchLastName(json.patient.lastName);
       setSearchBirthDate(json.patient.birthDate);
 
-      // optional: direkt Fall erstellen
       if (createCaseAfterCreatePatient) {
         await createCase(json.patient.id);
       }
 
-      // optional: Formular zurücksetzen
       setNewFirstName("");
       setNewLastName("");
       setNewBirthDate("");
@@ -302,13 +296,13 @@ export default function AdminClient() {
         <h2 className="text-lg font-semibold text-slate-900 mb-2">QR Base URL (für Handy/iPad)</h2>
         <p className="text-sm text-slate-600 mb-3">
           Wichtig: Für QR muss hier die <b>IP-Adresse</b> des PCs stehen (nicht localhost), z.B.{" "}
-          <code>http://192.168.1.231:3000</code>
+          <code>http://192.168.1.231:3000</code> oder für externe Tests die Ngrok-URL.
         </p>
         <input
           className="input"
           value={qrBaseUrl ?? ""}
           onChange={(e) => setQrBaseUrl(e.target.value)}
-          placeholder="z.B. http://192.168.1.231:3000"
+          placeholder="z.B. https://abc.ngrok-free.app"
         />
       </div>
 
@@ -435,18 +429,23 @@ export default function AdminClient() {
 
                     <div className="text-sm">
                       <div className="flex items-center gap-2">
-                        <span className="w-28 text-slate-600">Fallnummer:</span>
+                        <span className="w-28 text-slate-600 shrink-0">Fallnummer:</span>
                         <code className="bg-white border px-2 py-1 rounded">{caseResult.caseNumber}</code>
                       </div>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="w-28 text-slate-600">Token:</span>
+                        <span className="w-28 text-slate-600 shrink-0">Token:</span>
                         <code className="bg-white border px-2 py-1 rounded">{caseResult.token}</code>
                       </div>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="w-28 text-slate-600">Start-Link:</span>
-                        <code className="bg-white border px-2 py-1 rounded break-all">
+                        <span className="w-28 text-slate-600 shrink-0">Start-Link:</span>
+                        <a 
+                          href={caseResult.startLink}
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="bg-white border px-2 py-1 rounded break-all text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        >
                           {caseResult.startLink}
-                        </code>
+                        </a>
                       </div>
                     </div>
 
