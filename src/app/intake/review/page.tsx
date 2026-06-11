@@ -8,7 +8,7 @@ import { ReviewRow } from "@/app/components/review/ReviewRow";
 import { ReviewSection } from "@/app/components/review/ReviewSection";
 import { YesNoText } from "@/app/components/review/YesNoText";
 
-const STAFF_PASSWORD = "1";
+const STAFF_PASSWORD = "246813579";
 
 export default function ReviewPage() {
   const { data } = useIntake();
